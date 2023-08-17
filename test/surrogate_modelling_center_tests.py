@@ -34,13 +34,20 @@ class SurrogateModel:
         Raises:
             ValueError: If an invalid model_type is provided.
         """
+        # Center the inputs
         centered_inputs = inputs - center
+        
+        # Radial Basis Function Interpolation
         if model_type == 'rbf':
             self.model = RBFInterpolator(centered_inputs, outputs)
+        
+        # Second Order Polynomial Regression
         elif model_type == 'quadratic':
             order = 2 # 2nd order polynomial
             self.model = make_pipeline(PolynomialFeatures(order), LinearRegression())
             self.model.fit(centered_inputs, outputs)
+            
+        #Linear Regression
         elif model_type == 'linear':
             self.model = LinearRegression()
             self.model.fit(centered_inputs, outputs)
@@ -61,6 +68,7 @@ class SurrogateModel:
         Raises:
             ValueError: If the model has not been fitted yet.
         """
+        # Center the inputs
         centered_inputs = inputs - center
         if self.model is None:
             raise ValueError("Model has not been fitted yet.")
