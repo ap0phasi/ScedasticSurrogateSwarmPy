@@ -68,9 +68,9 @@ def test_surrogate_on_function(fun,dim):
     actual_value = np.apply_along_axis(fun, axis=1, arr=guess_point).reshape(-1, 1)
     print(f"-----Evaluate Function: {fun.__name__}-------")
     print("Interpolated Value:")
-    print(interpolated_value[0][0])
+    print(interpolated_value)
     print("\nActual Value:")
-    print(actual_value[0][0])
+    print(actual_value)
     
 # Calculate outputs using the Hartmann 6-dimensional function
 def hartmann6d_function(x):
