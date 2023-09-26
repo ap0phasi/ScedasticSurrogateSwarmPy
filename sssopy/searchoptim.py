@@ -3,6 +3,7 @@ import numpy as np
 from sampling import calculate_sampling_range, latin_hypercube_within_range
 from surrogateeval import eval_surrogate
 from surrogatemodel import *
+from optplotter import plot_optimizer_results
 
 from scipy.optimize import differential_evolution
 
@@ -20,9 +21,8 @@ def evaluate_model_fun(pos_x,model_function):
     return results
     
 def surrogate_optimization_function(guess_point,*args):
-    desired_values, surrogatesaves, pos_x, error_measure = args
-    surrogate_out = eval_surrogate(np.array([guess_point]),surrogatesaves,pos_x)
-    
+    desired_values, surrogatesaves, centersaves, error_measure = args
+    surrogate_out = eval_surrogate(np.array([guess_point]),surrogatesaves,centersaves)
     if error_measure == 'rmse':
         error = np.sqrt(np.mean((surrogate_out - desired_values)**2))
         
@@ -50,7 +50,7 @@ class SurrogateSearch:
             "search_samples": self.param_len * 2,
             "revert_best": False,
             "error_measure": "rmse",
-            "opt_mag": 0.6
+            "opt_mag": 2
         }
     
     def initialize_search(self):
@@ -118,8 +118,7 @@ class SurrogateSearch:
                                                                 np.array(self.highlim), 
                                                                 self.config["opt_mag"])
             opt_bounds = list(zip(lower_opt, upper_opt))
-            
-            subopt_result = differential_evolution(surrogate_optimization_function, 
+            subopt_result = differential_evolution(surrogate_optimization_function,
                                                opt_bounds, 
                                                args = (self.desired_vals,
                                                         surrogatesaves,
@@ -136,16 +135,12 @@ class SurrogateSearch:
 if __name__ == "__main__":
     def model_function(params):
         modval = params[0] * np.cos(xdat * params[1]) + params[1] * np.sin(xdat * params[0])
-        # modval = params[0] + xdat * params[1]**2
+        #modval = params[0] + xdat**2 * params[1]**2
         return modval
     
     xdat = np.arange(1, 100.5, 0.5)
     params = np.array([0.32, 0.4])
     ydat = model_function(params)
-    
-    import matplotlib.pyplot as plt
-    # plt.scatter(xdat,ydat)
-    # plt.show()
     
     searcher = SurrogateSearch(model_function,
                                ydat,
@@ -153,7 +148,12 @@ if __name__ == "__main__":
                                [0,0],
                                [1,1])
     
-    print(searcher.search_state["pos_x"])
     for itt in range(100):
         searcher.step_search()
+        plot_optimizer_results(searcher.search_state["pos_x"],
+                               xdat,
+                               ydat,
+                               searcher.search_state["surrogatesaves"],
+                               searcher.search_state["centersaves"],
+                               model_function)
         print(searcher.search_state["pos_x"])
