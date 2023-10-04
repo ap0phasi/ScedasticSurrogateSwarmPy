@@ -5,6 +5,7 @@ from surrogateeval import eval_surrogate
 from surrogatemodel import *
 from optplotter import plot_optimizer_results
 from problem import SSSoProblem
+from scedasticity import *
 
 from scipy.optimize import differential_evolution
 
@@ -60,7 +61,8 @@ class SurrogateSearch:
             "revert_best": False,
             "error_measure": "rmse",
             "opt_mag": 2,
-            "fit_threshold": 0.0
+            "fit_threshold": 0.0, 
+            "use_backprop": True
         }
     
     def initialize_search(self):
@@ -99,10 +101,18 @@ class SurrogateSearch:
         ### Are we okay with it always going in the same order?
         for center, center_result in zip(pos_x, center_results):
             # For each center, determine sampling range
+            
+            if (len(surrogatesaves)>0) & self.config["use_backprop"]:
+                model_error = error_by_point(center_result,self.desired_vals)
+                search_mag = backprop_error(np.array([center]),surrogatesaves,centersaves,model_error) * \
+                    self.config["search_mag"] * self.param_len
+            else:
+                search_mag = self.config["search_mag"]
+            
             lower_limit, upper_limit = calculate_sampling_range(center, 
                                                                 np.array(self.lowlim), 
                                                                 np.array(self.highlim), 
-                                                                self.config["search_mag"])
+                                                                search_mag)
             # Perform Latin Hypercube Sampling within determined range
             lhs_samples = latin_hypercube_within_range(lower_limit,
                                                        upper_limit,
@@ -128,6 +138,8 @@ class SurrogateSearch:
                                                                 np.array(self.highlim), 
                                                                 self.config["opt_mag"])
             opt_bounds = list(zip(lower_opt, upper_opt))
+            
+            # Perform suboptimization with selected optimizer
             subopt_result = differential_evolution(surrogate_optimization_function,
                                                opt_bounds, 
                                                args = (self.desired_vals,
@@ -151,12 +163,12 @@ if __name__ == "__main__":
         return modval
     
     def ineq_constraints(params):
-        ineq1 = (params[0]-params[1])
-        ineq2 = (params[0]-params[1])
-        return [ineq1]
+        #ineq1 = (params[0]-params[1])
+        #ineq2 = (params[0]-params[1])
+        return [0]
     
     def eq_constraints(params):
-        eq1 = (params[0]+params[1])-0.72
+       # eq1 = (params[0]+params[1])-0.72
         return [0]
         
     check = 1
@@ -175,7 +187,7 @@ if __name__ == "__main__":
                                [0,0],
                                [1,1])
     
-    for itt in range(10):
+    for itt in range(50):
         searcher.step_search()
         plot_optimizer_results(searcher.search_state["pos_x"],
                                xdat,
@@ -184,5 +196,5 @@ if __name__ == "__main__":
                                searcher.search_state["centersaves"],
                                optproblem = opt_problem)
         print(searcher.search_state["pos_x"])
-        
+
     print(searcher.search_state["surrogatesaves"])
