@@ -8,6 +8,7 @@ from problem import SSSoProblem
 from scedasticity import *
 
 from scipy.optimize import differential_evolution
+from scipy.optimize import minimize
 
 def evaluate_model_fun(pos_x,optproblem):
     """Evaluate user provided model function for sample set
@@ -62,7 +63,8 @@ class SurrogateSearch:
             "error_measure": "rmse",
             "opt_mag": 2,
             "fit_threshold": 0.0, 
-            "use_backprop": True
+            "use_backprop": False,
+            "subopt_algo": "DE"
         }
     
     def initialize_search(self):
@@ -72,12 +74,14 @@ class SurrogateSearch:
             dict: search state of optimizer
         """
         pos_x = np.random.uniform(self.lowlim, self.highlim, size=(1, self.param_len))
+        lowest_error = 1e9
         
         return {
             "pos_x": pos_x,
             "gen" : False,
             "surrogatesaves": [],
-            "centersaves": np.empty((0,self.param_len), int)
+            "centersaves": np.empty((0,self.param_len), int),
+            "lowest_error": lowest_error
         }
     
     def step_search(self):
@@ -90,20 +94,20 @@ class SurrogateSearch:
         if gen:
             newpos = np.random.uniform(self.lowlim, self.highlim, size=(1, self.param_len))
             pos_x = np.vstack([pos_x, newpos])
-        
+
         # Evaluate model function for each pos_x
         center_results = evaluate_model_fun(pos_x, self.optproblem)
         
         surrogate_recommendations = np.empty((0,self.param_len), int)
         
         # For each center and center result, search and optimize
-        
+        current_min_error = []
         ### Are we okay with it always going in the same order?
         for center, center_result in zip(pos_x, center_results):
             # For each center, determine sampling range
-            
+            model_error = error_by_point(center_result,self.desired_vals)
+            current_min_error.append(min(model_error)) 
             if (len(surrogatesaves)>0) & self.config["use_backprop"]:
-                model_error = error_by_point(center_result,self.desired_vals)
                 search_mag = backprop_error(np.array([center]),surrogatesaves,centersaves,model_error) * \
                     self.config["search_mag"] * self.param_len
             else:
@@ -138,28 +142,54 @@ class SurrogateSearch:
                                                                 np.array(self.highlim), 
                                                                 self.config["opt_mag"])
             opt_bounds = list(zip(lower_opt, upper_opt))
-            
             # Perform suboptimization with selected optimizer
-            subopt_result = differential_evolution(surrogate_optimization_function,
-                                               opt_bounds, 
-                                               args = (self.desired_vals,
-                                                        surrogatesaves,
-                                                        centersaves,
-                                                        self.config["error_measure"],
-                                                        self.optproblem))
-            surrogate_recommendations = np.vstack([surrogate_recommendations,subopt_result.x]) 
+            
+            if self.config["subopt_algo"] == "DE":
+                subopt_result = differential_evolution(surrogate_optimization_function,
+                                                opt_bounds, 
+                                                popsize = min([1000, 100 * self.param_len + 1]),
+                                                args = (self.desired_vals,
+                                                            surrogatesaves,
+                                                            centersaves,
+                                                            self.config["error_measure"],
+                                                            self.optproblem))
+            else:
+                subopt_result = minimize(surrogate_optimization_function, 
+                                         x0 = center, 
+                                         method=self.config["subopt_algo"], 
+                                         bounds=opt_bounds, 
+                                         args = (self.desired_vals,
+                                                            surrogatesaves,
+                                                            centersaves,
+                                                            self.config["error_measure"],
+                                                            self.optproblem)
+                                         )
+            surrogate_recommendations = np.vstack([surrogate_recommendations,subopt_result.x])
+        
+        # Determine if new locusts should be generated
+        if self.search_state["lowest_error"] < min(current_min_error):
+            self.search_state["gen"] = True
+            self.search_state["lowest_error"] = min(current_min_error)
+            print("Generating new center")
+        else:
+            self.search_state["gen"] = False
+            self.search_state["lowest_error"] = min(current_min_error)
             
         self.search_state["pos_x"] = surrogate_recommendations
-        self.search_state["gen"] = True
         self.search_state["surrogatesaves"] = surrogatesaves
         self.search_state["centersaves"] = centersaves
         
 #Example Usage
 if __name__ == "__main__":
+    
+    objective_function_calls = 0
+    
     def model_function(params,args):
         input_vals, check = args
         modval = params[0] * np.cos(input_vals * params[1]) + params[1] * np.sin(input_vals * params[0])
         #modval = params[0] + input_vals * params[1]
+        global objective_function_calls
+        objective_function_calls += 1
         return modval
     
     def ineq_constraints(params):
@@ -196,5 +226,5 @@ if __name__ == "__main__":
                                searcher.search_state["centersaves"],
                                optproblem = opt_problem)
         print(searcher.search_state["pos_x"])
+        print(f"Objective Function Calls: {objective_function_calls}")
 
-    print(searcher.search_state["surrogatesaves"])

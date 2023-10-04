@@ -10,9 +10,9 @@ def backprop_error(center,surrogatesaves,centersaves,error):
     # Get coefficients of first order surrogate model
     first_order_coefs = surrogatesaves[closest_center_index][0].model.coef_
     x, residuals, rank, s = np.linalg.lstsq(first_order_coefs, error, rcond=None)
-    error_magitude = np.maximum(0.1,np.absolute(x))
-    error_magitude = error_magitude / sum(error_magitude)
-    return error_magitude
+    error_magnitude = np.maximum(0.1, np.absolute(x))
+    error_magnitude = error_magnitude / sum(error_magnitude)
+    return error_magnitude
 
 def error_by_point(modeled,actual):
     return (modeled-actual)**2
