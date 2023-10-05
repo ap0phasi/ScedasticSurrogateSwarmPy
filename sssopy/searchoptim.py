@@ -1,43 +1,14 @@
 import numpy as np
 
 from sampling import calculate_sampling_range, latin_hypercube_within_range
-from surrogateeval import eval_surrogate
 from surrogatemodel import *
 from optplotter import plot_optimizer_results
 from problem import SSSoProblem
 from scedasticity import *
+from modelresults import *
 
 from scipy.optimize import differential_evolution
 from scipy.optimize import minimize
-
-def evaluate_model_fun(pos_x,optproblem):
-    """Evaluate user provided model function for sample set
-
-    Args:
-        pos_x (numpy array): sample set inputs
-        optproblem (class): user defined SSSo optimization problem
-
-    Returns:
-        numpy array: model function results
-    """
-    results = np.array([optproblem.eval_function(row) for row in pos_x])
-    return results
-    
-def surrogate_optimization_function(guess_point,*args):
-    
-    ### We don't need to develop surrogates for constraints, it is a waste of time. 
-    desired_values, surrogatesaves, centersaves, error_measure, optproblem = args
-    surrogate_out = eval_surrogate(np.array([guess_point]),surrogatesaves,centersaves)
-    if error_measure == 'rmse':
-        error_fun = np.sqrt(np.mean((surrogate_out - desired_values)**2))
-        
-    # Evaluate errors due to inequality constraints
-    error_ineq = np.sqrt(np.mean(np.maximum(np.array(optproblem.eval_ineq(guess_point)),0)**2))
-    
-    # Evaluate errors due to equality constraints
-    error_eq = np.sqrt(np.mean(np.array(optproblem.eval_eq(guess_point))**2))
-        
-    return(error_fun+error_ineq+error_eq)
 
 class SurrogateSearch:
     """
@@ -64,7 +35,7 @@ class SurrogateSearch:
             "opt_mag": 2,
             "fit_threshold": 0.0, 
             "use_backprop": False,
-            "subopt_algo": "DE"
+            "subopt_algo": "differential_evolution"
         }
     
     def initialize_search(self):
@@ -107,16 +78,19 @@ class SurrogateSearch:
             # For each center, determine sampling range
             model_error = error_by_point(center_result,self.desired_vals)
             current_min_error.append(min(model_error)) 
+            
             if (len(surrogatesaves)>0) & self.config["use_backprop"]:
-                search_mag = backprop_error(np.array([center]),surrogatesaves,centersaves,model_error) * \
+                search_mag = np.maximum(0,backprop_error(np.array([center]),surrogatesaves,centersaves,model_error))* \
                     self.config["search_mag"] * self.param_len
             else:
                 search_mag = self.config["search_mag"]
-            
+                
             lower_limit, upper_limit = calculate_sampling_range(center, 
                                                                 np.array(self.lowlim), 
                                                                 np.array(self.highlim), 
                                                                 search_mag)
+            
+            
             # Perform Latin Hypercube Sampling within determined range
             lhs_samples = latin_hypercube_within_range(lower_limit,
                                                        upper_limit,
@@ -144,10 +118,12 @@ class SurrogateSearch:
             opt_bounds = list(zip(lower_opt, upper_opt))
             # Perform suboptimization with selected optimizer
             
-            if self.config["subopt_algo"] == "DE":
+            if self.config["subopt_algo"] == "differential_evolution":
                 subopt_result = differential_evolution(surrogate_optimization_function,
                                                 opt_bounds, 
-                                                popsize = min([1000, 100 * self.param_len + 1]),
+                                                # popsize = 1000,
+                                                # maxiter = 300,
+                                                # tol = 1e-9,
                                                 args = (self.desired_vals,
                                                             surrogatesaves,
                                                             centersaves,
@@ -156,8 +132,10 @@ class SurrogateSearch:
             else:
                 subopt_result = minimize(surrogate_optimization_function, 
                                          x0 = center, 
+                                         #x0 = np.random.uniform(self.lowlim, self.highlim, size=(1, self.param_len))[0],
                                          method=self.config["subopt_algo"], 
                                          bounds=opt_bounds, 
+                                         options = {"maxiter":1000},
                                          args = (self.desired_vals,
                                                             surrogatesaves,
                                                             centersaves,
@@ -166,7 +144,7 @@ class SurrogateSearch:
                                          )
             surrogate_recommendations = np.vstack([surrogate_recommendations,subopt_result.x])
         
-        # Determine if new locusts should be generated
+        # Determine if new centers should be generated
         if self.search_state["lowest_error"] < min(current_min_error):
             self.search_state["gen"] = True
             self.search_state["lowest_error"] = min(current_min_error)
@@ -178,6 +156,7 @@ class SurrogateSearch:
         self.search_state["pos_x"] = surrogate_recommendations
         self.search_state["surrogatesaves"] = surrogatesaves
         self.search_state["centersaves"] = centersaves
+        self.search_state["gen"] = True
         
 #Example Usage
 if __name__ == "__main__":
@@ -187,18 +166,18 @@ if __name__ == "__main__":
     def model_function(params,args):
         input_vals, check = args
         modval = params[0] * np.cos(input_vals * params[1]) + params[1] * np.sin(input_vals * params[0])
-        #modval = params[0] + input_vals * params[1]
+        #modval = params[0] + input_vals**2 * params[1]**2
         global objective_function_calls
         objective_function_calls += 1
         return modval
     
     def ineq_constraints(params):
-        #ineq1 = (params[0]-params[1])
-        #ineq2 = (params[0]-params[1])
+        # ineq1 = (params[0]-params[1])
+        # ineq2 = (params[0]-params[1])
         return [0]
     
     def eq_constraints(params):
-       # eq1 = (params[0]+params[1])-0.72
+        # eq1 = (params[0]+params[1])-0.72
         return [0]
         
     check = 1
@@ -217,7 +196,7 @@ if __name__ == "__main__":
                                [0,0],
                                [1,1])
     
-    for itt in range(50):
+    for itt in range(15):
         searcher.step_search()
         plot_optimizer_results(searcher.search_state["pos_x"],
                                xdat,
