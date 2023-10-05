@@ -16,3 +16,6 @@ def backprop_error(center,surrogatesaves,centersaves,error):
 
 def error_by_point(modeled,actual):
     return (modeled-actual)**2
+
+def heteroscedastic_loss(desired_values,mean,std):
+    return 1/(2*std**2)*np.abs(desired_values-mean)**2+1/2*np.log(std**2)

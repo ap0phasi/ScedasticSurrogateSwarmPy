@@ -34,7 +34,7 @@ class SurrogateSearch:
             "error_measure": "rmse",
             "opt_mag": 2,
             "fit_threshold": 0.0, 
-            "use_backprop": False,
+            "use_backprop": True,
             "subopt_algo": "differential_evolution"
         }
     
@@ -80,8 +80,8 @@ class SurrogateSearch:
             current_min_error.append(min(model_error)) 
             
             if (len(surrogatesaves)>0) & self.config["use_backprop"]:
-                search_mag = np.maximum(0,backprop_error(np.array([center]),surrogatesaves,centersaves,model_error))* \
-                    self.config["search_mag"] * self.param_len
+                search_mag = np.maximum(0.2,(backprop_error(np.array([center]),surrogatesaves,centersaves,model_error)* \
+                    self.config["search_mag"] * self.param_len))
             else:
                 search_mag = self.config["search_mag"]
                 
@@ -156,7 +156,6 @@ class SurrogateSearch:
         self.search_state["pos_x"] = surrogate_recommendations
         self.search_state["surrogatesaves"] = surrogatesaves
         self.search_state["centersaves"] = centersaves
-        self.search_state["gen"] = True
         
 #Example Usage
 if __name__ == "__main__":
