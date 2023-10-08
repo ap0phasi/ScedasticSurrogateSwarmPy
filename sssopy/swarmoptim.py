@@ -2,10 +2,11 @@ import numpy as np
 
 from sampling import calculate_sampling_range, latin_hypercube_within_range
 from surrogatemodel import *
-from optplotter import plot_optimizer_results, plot_optimizer_results_nosurrogate
+from optplotter import plot_optimizer_results_with_rec
 from problem import SSSoProblem
 from scedasticity import *
 from modelresults import *
+from clustering import cluster_points
 
 from scipy.optimize import differential_evolution
 from scipy.optimize import minimize
@@ -36,11 +37,14 @@ class SurrogateSwarm:
             "opt_mag": 2,
             "fit_threshold": 0.0, 
             "subopt_algo": "differential_evolution",
+            "cluster_num" : 3,
+            "cluster_min" : 5,
             "locality" : 0.3,
             "p_w" : 0.3,
             "l_w" : 0.6,
             "lo_w" : 0.6,
-            "vel_w" : 0.5 
+            "vel_w" : 0.5,
+            "surro_w" : 0.6 
         }
     
     def initialize_swarm(self):
@@ -126,10 +130,57 @@ class SurrogateSwarm:
         r_l = np.random.uniform(0, 1, size=(self.config["swarm_size"], self.param_len)) # local current
         r_lo = np.random.uniform(0, 1, size=(self.config["swarm_size"], self.param_len)) # local overall
         
+        # Cluster locusts
+        clustering_vector, cluster_centers = cluster_points(pos_x, self.config["cluster_num"], self.config["cluster_min"])
+        
+        # Determine which of all historical points are closest to the cluster centers
+        distances = cdist(cluster_centers, all_pos)
+        historical_index = np.argsort(distances, axis=1)[:, 0]
+        cluster_centers_hist = all_pos[historical_index,:]
+        cluster_centers_hist_result = all_results[historical_index,:]
+        
+        # For each cluster center, fit surrogate model
+        for cluster_index in range(cluster_centers.shape[0]):
+            center = cluster_centers_hist[cluster_index,:]
+            center_result = cluster_centers_hist_result[cluster_index,:]
+            swarm_samples = pos_x[clustering_vector==cluster_index,]
+            swarm_results = pos_results[clustering_vector==cluster_index,]
+        
+            # Append center result and centers to data for surrogate fitting
+            function_inputs = np.vstack([swarm_samples,center])
+            function_outputs = np.vstack([swarm_results,center_result])
+            # Fit surrogates to sample results
+            selector = SurrogateModelSelector(fit_threshold=self.config["fit_threshold"])
+            selector.fit_models(function_inputs, function_outputs, center)
+            
+            # Centersaves must be the same length as surrogate saves
+            centersaves = np.vstack([centersaves,center])
+            surrogatesaves.append(selector.models)
+         
+        # Perform Optimization on Surrogate Model
+        lower_opt, upper_opt = calculate_sampling_range(center, 
+                                                            np.array(self.lowlim), 
+                                                            np.array(self.highlim), 
+                                                            self.config["opt_mag"])
+        opt_bounds = list(zip(lower_opt, upper_opt))
+        
+        # Perform suboptimization with selected optimizer
+        subopt_result = subopt(self.config["subopt_algo"],
+                                self.optproblem,
+                                opt_bounds,
+                                self.config["error_measure"],
+                                self.desired_vals,
+                                surrogatesaves,
+                                centersaves,
+                                center)
+           
+        surrogate_recommendations = subopt_result
+        
         vel = vel * self.config["vel_w"] + \
             r_p * self.config["p_w"] * (best_individual_position - pos_x) + \
             r_l * self.config["l_w"] * (best_local_position_current - pos_x) + \
-            r_lo * self.config["lo_w"] * (best_local_position_overall - pos_x)
+            r_lo * self.config["lo_w"] * (best_local_position_overall - pos_x) + \
+            self.config["surro_w"] * (surrogate_recommendations - pos_x)
             
         self.swarm_state["pos_x"] = pos_x
         self.swarm_state["pos_results"] = pos_results
@@ -141,6 +192,7 @@ class SurrogateSwarm:
         self.swarm_state["all_pos"] = all_pos
         self.swarm_state["all_results"] = all_results
         self.swarm_state["vel"] = vel
+        self.swarm_state["surrogate_recommendations"] = surrogate_recommendations
         
         
 #Example Usage
@@ -182,9 +234,15 @@ if __name__ == "__main__":
                                [1,1])
     for itt in range(20):
         swarmer.step_swarm()
-        plot_optimizer_results_nosurrogate(swarmer.swarm_state["pos_x"],
+        swarmer.swarm_state["surrogate_recommendations"]
+        plot_optimizer_results_with_rec(swarmer.swarm_state["pos_x"],
                                xdat,
                                ydat,
-                               optproblem = opt_problem)
-        print(np.mean(swarmer.swarm_state["pos_x"],axis = 0))
+                               swarmer.swarm_state["surrogatesaves"],
+                               swarmer.swarm_state["centersaves"],
+                               swarmer.swarm_state["surrogate_recommendations"],
+                               optproblem = opt_problem
+                               )
+        # print(np.mean(swarmer.swarm_state["pos_x"],axis = 0))
+        print(swarmer.swarm_state["surrogate_recommendations"])
         print(f"Objective Function Calls: {objective_function_calls}")

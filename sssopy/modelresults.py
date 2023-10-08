@@ -39,9 +39,9 @@ def subopt(subopt_algo,optproblem,opt_bounds,error_measure,desired_vals,surrogat
     if subopt_algo == "differential_evolution":
         subopt_result = differential_evolution(surrogate_optimization_function,
                                         opt_bounds, 
-                                        # popsize = 1000,
-                                        # maxiter = 300,
-                                        # tol = 1e-9,
+                                        popsize = 100,
+                                        maxiter = 300,
+                                        tol = 1e-9,
                                         args = (desired_vals,
                                                     surrogatesaves,
                                                     centersaves,
