@@ -7,9 +7,6 @@ from problem import SSSoProblem
 from scedasticity import *
 from modelresults import *
 
-from scipy.optimize import differential_evolution
-from scipy.optimize import minimize
-
 class SurrogateSearch:
     """
     A class to perform surrogate searching
@@ -34,8 +31,9 @@ class SurrogateSearch:
             "error_measure": "rmse",
             "opt_mag": 2,
             "fit_threshold": 0.0, 
-            "use_backprop": True,
-            "subopt_algo": "differential_evolution"
+            "use_backprop": False,
+            "subopt_algo": "differential_evolution",
+            "always_gen" : True
         }
     
     def initialize_search(self):
@@ -84,7 +82,7 @@ class SurrogateSearch:
                     self.config["search_mag"] * self.param_len))
             else:
                 search_mag = self.config["search_mag"]
-                
+            
             lower_limit, upper_limit = calculate_sampling_range(center, 
                                                                 np.array(self.lowlim), 
                                                                 np.array(self.highlim), 
@@ -116,36 +114,21 @@ class SurrogateSearch:
                                                                 np.array(self.highlim), 
                                                                 self.config["opt_mag"])
             opt_bounds = list(zip(lower_opt, upper_opt))
-            # Perform suboptimization with selected optimizer
             
-            if self.config["subopt_algo"] == "differential_evolution":
-                subopt_result = differential_evolution(surrogate_optimization_function,
-                                                opt_bounds, 
-                                                # popsize = 1000,
-                                                # maxiter = 300,
-                                                # tol = 1e-9,
-                                                args = (self.desired_vals,
-                                                            surrogatesaves,
-                                                            centersaves,
-                                                            self.config["error_measure"],
-                                                            self.optproblem))
-            else:
-                subopt_result = minimize(surrogate_optimization_function, 
-                                         x0 = center, 
-                                         #x0 = np.random.uniform(self.lowlim, self.highlim, size=(1, self.param_len))[0],
-                                         method=self.config["subopt_algo"], 
-                                         bounds=opt_bounds, 
-                                         options = {"maxiter":1000},
-                                         args = (self.desired_vals,
-                                                            surrogatesaves,
-                                                            centersaves,
-                                                            self.config["error_measure"],
-                                                            self.optproblem)
-                                         )
-            surrogate_recommendations = np.vstack([surrogate_recommendations,subopt_result.x])
+            # Perform suboptimization with selected optimizer
+            subopt_result = subopt(self.config["subopt_algo"],
+                                   self.optproblem,
+                                   opt_bounds,
+                                   self.config["error_measure"],
+                                   self.desired_vals,
+                                   surrogatesaves,
+                                   centersaves,
+                                   center)
+           
+            surrogate_recommendations = np.vstack([surrogate_recommendations,subopt_result])
         
         # Determine if new centers should be generated
-        if self.search_state["lowest_error"] < min(current_min_error):
+        if (self.search_state["lowest_error"] < min(current_min_error))|self.config["always_gen"]:
             self.search_state["gen"] = True
             self.search_state["lowest_error"] = min(current_min_error)
             print("Generating new center")
@@ -156,6 +139,7 @@ class SurrogateSearch:
         self.search_state["pos_x"] = surrogate_recommendations
         self.search_state["surrogatesaves"] = surrogatesaves
         self.search_state["centersaves"] = centersaves
+        
         
 #Example Usage
 if __name__ == "__main__":

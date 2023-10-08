@@ -1,5 +1,8 @@
 from surrogateeval import eval_surrogate
+
 import numpy as np
+from scipy.optimize import differential_evolution
+from scipy.optimize import minimize
 
 def evaluate_model_fun(pos_x,optproblem):
     """Evaluate user provided model function for sample set
@@ -29,3 +32,35 @@ def surrogate_optimization_function(guess_point,*args):
     error_eq = np.sqrt(np.mean(np.array(optproblem.eval_eq(guess_point))**2))
         
     return(error_fun+error_ineq+error_eq)
+
+
+
+def subopt(subopt_algo,optproblem,opt_bounds,error_measure,desired_vals,surrogatesaves,centersaves,center):
+    if subopt_algo == "differential_evolution":
+        subopt_result = differential_evolution(surrogate_optimization_function,
+                                        opt_bounds, 
+                                        # popsize = 1000,
+                                        # maxiter = 300,
+                                        # tol = 1e-9,
+                                        args = (desired_vals,
+                                                    surrogatesaves,
+                                                    centersaves,
+                                                    error_measure,
+                                                    optproblem)
+        )
+        return subopt_result.x
+    else:
+        subopt_result = minimize(surrogate_optimization_function, 
+                                x0 = center, 
+                                #x0 = np.random.uniform(self.lowlim, self.highlim, size=(1, self.param_len))[0],
+                                method=subopt_algo, 
+                                bounds=opt_bounds, 
+                                options = {"maxiter":1000},
+                                args = (desired_vals,
+                                                surrogatesaves,
+                                                centersaves,
+                                                error_measure,
+                                                optproblem)
+                                )
+        return subopt_result.x
+    
