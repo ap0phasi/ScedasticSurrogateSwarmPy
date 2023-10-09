@@ -22,7 +22,7 @@ def cluster_points(inputs, num_clusters, min_points_per_cluster):
         numpy.ndarray: Cluster centers.
     """
     # Create KMeans instance
-    kmeans = KMeans(n_clusters=num_clusters, random_state=0)
+    kmeans = KMeans(n_clusters=num_clusters, random_state=0,n_init='auto')
 
     # Fit the model and predict cluster labels
     cluster_labels = kmeans.fit_predict(inputs)

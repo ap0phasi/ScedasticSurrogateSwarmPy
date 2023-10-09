@@ -78,7 +78,7 @@ class SurrogateSearch:
             current_min_error.append(min(model_error)) 
             
             if (len(surrogatesaves)>0) & self.config["use_backprop"]:
-                search_mag = np.maximum(0.2,(backprop_error(np.array([center]),surrogatesaves,centersaves,model_error)* \
+                search_mag = np.maximum(0.2,(backprop_error(np.array([center]),surrogatesaves,centersaves,model_error) * \
                     self.config["search_mag"] * self.param_len))
             else:
                 search_mag = self.config["search_mag"]
@@ -172,6 +172,7 @@ if __name__ == "__main__":
                               args = (xdat,check)
                               )
     ydat = opt_problem.eval_function(params)
+    print(f"Objective Function Calls: {objective_function_calls}")
     
     searcher = SurrogateSearch(opt_problem,
                                ydat,
