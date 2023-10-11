@@ -109,8 +109,15 @@ class SurrogateSwarm:
         all_results = np.vstack([all_results, pos_results])
         
         # Backpropagate the heteroscedastic loss
-        use_sced = False
-        if (centersaves.shape[0]>1) & (sum(np.maximum(0,pos_het))>0):
+        # Conditions for setting use_sced
+        sced_conditions = [
+            centersaves.shape[0] > 1,
+            sum(np.maximum(0,pos_het))>0
+        ]
+
+        # Check if any condition is True
+        use_sced = all(sced_conditions)
+        if use_sced:
             het_samples = np.empty((0,self.param_len), int)
             for x in pos_x:
                 het_backprop = backprop_error(center = np.array([x]),
@@ -123,7 +130,6 @@ class SurrogateSwarm:
                                                             magnitude = het_backprop * self.config["sced_mag"])
                 het_sample = latin_hypercube_within_range(het_range_lower,het_range_upper,1)
                 het_samples = np.vstack([het_samples,het_sample])
-            use_sced = True
             
         pos_scores = fitness_eval(pos_results,self.desired_vals,"rmse")
         improved_locations = pos_scores < best_individual_score
@@ -203,7 +209,7 @@ class SurrogateSwarm:
             self.config["surro_w"] * (surrogate_recommendations - pos_x)
         
         if use_sced:
-            vel = vel + self.config["sced_w"] * (het_samples - pos_x)  
+            vel = vel + self.config["sced_w"] * (het_samples - pos_x) 
             
         self.swarm_state["pos_x"] = pos_x
         self.swarm_state["pos_results"] = pos_results
