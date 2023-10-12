@@ -18,7 +18,7 @@ def fitness_eval(modeled_values,desired_values,error_measure):
 
 class SurrogateSwarm:
     
-    def __init__(self,optproblem,desired_vals,param_len,lowlim,highlim,config=None,surrogatesaves=None,centersaves=None):
+    def __init__(self,optproblem,desired_vals,param_len,lowlim,highlim,config=None,surrogatesaves=None,centersaves=None,all_pos = None,all_results = None):
         self.optproblem = optproblem
         self.desired_vals = desired_vals
         self.param_len = param_len
@@ -27,6 +27,8 @@ class SurrogateSwarm:
         self.config = config if config else self.default_config()
         self.surrogatesaves = surrogatesaves if surrogatesaves else []
         self.centersaves = centersaves if centersaves else np.empty((0,self.param_len), int)
+        self.all_pos = all_pos if all_pos else []
+        self.all_results = all_results if all_results else []
         self.swarm_state = self.initialize_swarm()
 
     
@@ -66,6 +68,12 @@ class SurrogateSwarm:
         
         vel_mag = np.abs(np.array(self.lowlim)-np.array(self.highlim))/1000
         vel = np.random.uniform(-vel_mag, vel_mag, size=(self.config["swarm_size"], self.param_len))
+        
+        # Were all_pos and all_results provided?
+        if len(self.all_pos)==0:
+            self.all_pos = pos_x
+            self.all_results = pos_results
+    
         return {
             "pos_x": pos_x,
             "pos_results" : pos_results,
@@ -74,8 +82,8 @@ class SurrogateSwarm:
             "pos_het" : pos_het,
             "best_individual_position" : best_individual_position,
             "best_individual_score" : best_individual_score,
-            "all_pos" : pos_x,
-            "all_results" : pos_results,
+            "all_pos" : self.all_pos,
+            "all_results" : self.all_results,
             "vel" : vel
         }
         

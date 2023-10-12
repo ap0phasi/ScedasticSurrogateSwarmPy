@@ -57,7 +57,9 @@ class SurrogateSearch:
             "gen" : False,
             "surrogatesaves": [],
             "centersaves": np.empty((0,self.param_len), int),
-            "lowest_error": lowest_error
+            "lowest_error": lowest_error,
+            "all_pos" : np.empty((0,self.param_len), int),
+            "all_results" : []
         }
     
     def step_search(self):
@@ -66,6 +68,8 @@ class SurrogateSearch:
         gen = self.search_state["gen"]
         surrogatesaves = self.search_state["surrogatesaves"]
         centersaves = self.search_state["centersaves"]
+        all_pos = self.search_state["all_pos"]
+        all_results = self.search_state["all_results"]
         
         # If gen state is true, generate a new search position
         if gen:
@@ -78,7 +82,15 @@ class SurrogateSearch:
         # Evaluate model function for each pos_x
         center_results = evaluate_model_fun(pos_x, self.optproblem)
         
+        #Initialize Empty Surrogate Recommendations
         surrogate_recommendations = np.empty((0,self.param_len), int)
+        
+        # Save center results for swarm reference
+        all_pos = np.vstack([all_pos,pos_x])
+        if len(all_results)>0:
+            all_results = np.vstack([all_results, center_results])
+        else:
+            all_results = center_results
         
         # For each center and center result, search and optimize
         current_min_error = []
@@ -107,6 +119,10 @@ class SurrogateSearch:
             
             # Evaluate model function for samples
             lhs_results = evaluate_model_fun(lhs_samples, self.optproblem)
+            
+            # Save lhs results for swarm reference
+            all_pos = np.vstack([all_pos, lhs_samples])
+            all_results = np.vstack([all_results, lhs_results])
             
             # Append center result and centers to data for surrogate fitting
             function_inputs = np.vstack([lhs_samples,center])
@@ -202,6 +218,8 @@ class SurrogateSearch:
         self.search_state["surrogatesaves"] = surrogatesaves
         self.search_state["centersaves"] = centersaves
         self.search_state["surrogate_recommendations"] = surrogate_recommendations
+        self.search_state["all_pos"] = all_pos
+        self.search_state["all_results"] = all_results
         
         
 #Example Usage
