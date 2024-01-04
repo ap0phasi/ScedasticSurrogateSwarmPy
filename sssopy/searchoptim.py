@@ -214,6 +214,7 @@ class SurrogateSearch:
         vel[condition2] = -vel[condition2] / 100
         
         self.search_state["pos_x"] = pos_x + vel
+        self.search_state["pos_results"] = center_results
         self.search_state["vel"] = vel
         self.search_state["surrogatesaves"] = surrogatesaves
         self.search_state["centersaves"] = centersaves
