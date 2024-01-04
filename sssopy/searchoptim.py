@@ -1,11 +1,11 @@
 import numpy as np
 
-from sampling import calculate_sampling_range, latin_hypercube_within_range
-from surrogatemodel import *
-from optplotter import plot_optimizer_results
-from problem import SSSoProblem
-from scedasticity import *
-from modelresults import *
+from .sampling import calculate_sampling_range, latin_hypercube_within_range
+from .surrogatemodel import *
+from .optplotter import plot_optimizer_results
+from .problem import SSSoProblem
+from .scedasticity import *
+from .modelresults import *
 
 class SurrogateSearch:
     """
@@ -29,14 +29,14 @@ class SurrogateSearch:
             "search_samples": min([ 100, self.param_len * 2 ]),
             "revert_best": False,
             "error_measure": "rmse",
-            "opt_mag": 1,
-            "fit_threshold": 0.1, 
+            "opt_mag": 2,
+            "fit_threshold": 0.0, 
             "use_backprop": False,
             "subopt_algo": "differential_evolution",
             "always_gen" : False,
-            "vel_w" : 0.1,
-            "surro_w" : 0.9,
-            "sced_w" : 1,
+            "vel_w" : 0.0,
+            "surro_w" : 1,
+            "sced_w" : 0,
             "sced_mag" : 0.1
         }
     

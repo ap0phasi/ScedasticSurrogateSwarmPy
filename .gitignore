@@ -2,3 +2,5 @@
 test
 sssopy/search_optim_old.py
 sssopy/__pycache__*
+sssopy.egg-info
+

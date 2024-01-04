@@ -5,8 +5,8 @@ Created on Thu Aug 17 21:26:27 2023
 @author: johnm
 """
 
-from clustering import cluster_points
-from surrogatemodel import *
+from .clustering import cluster_points
+from .surrogatemodel import *
 
 from scipy.spatial.distance import cdist
 import numpy as np

@@ -1,4 +1,4 @@
-from surrogateeval import eval_surrogate
+from .surrogateeval import eval_surrogate
 
 import numpy as np
 from scipy.optimize import differential_evolution

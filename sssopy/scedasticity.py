@@ -1,4 +1,4 @@
-from surrogatemodel import *
+from .surrogatemodel import *
 
 from scipy.spatial.distance import cdist
 import numpy as np

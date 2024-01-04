@@ -1,12 +1,12 @@
 import numpy as np
 
-from sampling import calculate_sampling_range, latin_hypercube_within_range
-from surrogatemodel import *
-from optplotter import plot_optimizer_results_with_rec
-from problem import SSSoProblem
-from scedasticity import *
-from modelresults import *
-from clustering import cluster_points
+from .sampling import calculate_sampling_range, latin_hypercube_within_range
+from .surrogatemodel import *
+from .optplotter import plot_optimizer_results_with_rec
+from .problem import SSSoProblem
+from .scedasticity import *
+from .modelresults import *
+from .clustering import cluster_points
 
 from scipy.optimize import differential_evolution
 from scipy.optimize import minimize
@@ -25,10 +25,10 @@ class SurrogateSwarm:
         self.lowlim = lowlim
         self.highlim = highlim
         self.config = config if config else self.default_config()
-        self.surrogatesaves = surrogatesaves if surrogatesaves else []
-        self.centersaves = centersaves if centersaves else np.empty((0,self.param_len), int)
-        self.all_pos = all_pos if all_pos else []
-        self.all_results = all_results if all_results else []
+        self.surrogatesaves = surrogatesaves if surrogatesaves is not None else []
+        self.centersaves = centersaves if centersaves is not None else np.empty((0,self.param_len), int)
+        self.all_pos = all_pos if all_pos is not None else []
+        self.all_results = all_results if all_results is not None else []
         self.swarm_state = self.initialize_swarm()
 
     
