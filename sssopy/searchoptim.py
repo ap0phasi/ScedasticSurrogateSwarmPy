@@ -25,8 +25,8 @@ class SurrogateSearch:
     
     def default_config(self):
         return {
-            "search_mag": 0.2,
-            "search_samples": min([ 100, self.param_len * 2 ]),
+            "search_mag": 0.4,
+            "search_samples": min([ 100, self.param_len * 4 ]),
             "revert_best": False,
             "error_measure": "rmse",
             "opt_mag": 2,
@@ -34,10 +34,11 @@ class SurrogateSearch:
             "use_backprop": False,
             "subopt_algo": "differential_evolution",
             "always_gen" : False,
-            "vel_w" : 0.0,
-            "surro_w" : 1,
+            "vel_w" : 0.1,
+            "surro_w" : 0.9,
             "sced_w" : 0,
-            "sced_mag" : 0.1
+            "sced_mag" : 0.1,
+            "supplement_historical": False
         }
     
     def initialize_search(self):
@@ -70,6 +71,16 @@ class SurrogateSearch:
         centersaves = self.search_state["centersaves"]
         all_pos = self.search_state["all_pos"]
         all_results = self.search_state["all_results"]
+        
+        # Update our positions with velocity, "bouncing" off of the bounds
+        condition1 = (pos_x + vel) < self.lowlim
+        condition2 = (pos_x + vel) > self.highlim
+
+        vel[condition1] = -vel[condition1] / 100
+        vel[condition2] = -vel[condition2] / 100
+        
+        # Update position
+        pos_x = pos_x + vel
         
         # If gen state is true, generate a new search position
         if gen:
@@ -120,13 +131,31 @@ class SurrogateSearch:
             # Evaluate model function for samples
             lhs_results = evaluate_model_fun(lhs_samples, self.optproblem)
             
+            # Optionally, supplement with historical values that are within the LHS range
+            if self.config["supplement_historical"]:
+                # Create boolean masks
+                mask_lower = np.all(all_pos >= lower_limit, axis=1)
+                mask_upper = np.all(all_pos <= upper_limit, axis=1)
+
+                # Combine masks
+                final_mask = mask_lower & mask_upper
+                
+                # Filter the arrays
+                supplemental_pos = all_pos[final_mask]
+                supplemental_res = all_results[final_mask]
+                
+                # Append center result, supplementals, and centers to data for surrogate fitting
+                function_inputs = np.vstack([lhs_samples, supplemental_pos, center])
+                function_outputs = np.vstack([lhs_results, supplemental_res, center_result])
+            else:
+                # Append center result and centers to data for surrogate fitting
+                function_inputs = np.vstack([lhs_samples, center])
+                function_outputs = np.vstack([lhs_results, center_result])
+                
             # Save lhs results for swarm reference
             all_pos = np.vstack([all_pos, lhs_samples])
             all_results = np.vstack([all_results, lhs_results])
             
-            # Append center result and centers to data for surrogate fitting
-            function_inputs = np.vstack([lhs_samples,center])
-            function_outputs = np.vstack([lhs_results,center_result])
             # Fit surrogates to sample results
             selector = SurrogateModelSelector(fit_threshold=self.config["fit_threshold"])
             selector.fit_models(function_inputs, function_outputs, center)
@@ -205,15 +234,8 @@ class SurrogateSearch:
             
         if use_sced:
             vel = vel + self.config["sced_w"] * (het_samples - pos_x) 
-    
-        # Update our positions with velocity, "bouncing" off of the bounds
-        condition1 = (pos_x + vel) < self.lowlim
-        condition2 = (pos_x + vel) > self.highlim
-
-        vel[condition1] = -vel[condition1] / 100
-        vel[condition2] = -vel[condition2] / 100
         
-        self.search_state["pos_x"] = pos_x + vel
+        self.search_state["pos_x"] = pos_x
         self.search_state["pos_results"] = center_results
         self.search_state["vel"] = vel
         self.search_state["surrogatesaves"] = surrogatesaves
