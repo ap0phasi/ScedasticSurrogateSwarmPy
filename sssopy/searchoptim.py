@@ -25,8 +25,8 @@ class SurrogateSearch:
     
     def default_config(self):
         return {
-            "search_mag": 0.4,
-            "search_samples": min([ 100, self.param_len * 4 ]),
+            "search_mag": 0.2,
+            "search_samples": min([ 100, self.param_len * 2 ]),
             "revert_best": False,
             "error_measure": "rmse",
             "opt_mag": 2,
@@ -36,7 +36,7 @@ class SurrogateSearch:
             "always_gen" : False,
             "vel_w" : 0.1,
             "surro_w" : 0.9,
-            "sced_w" : 0,
+            "sced_w" : 1,
             "sced_mag" : 0.1,
             "supplement_historical": False
         }
@@ -145,8 +145,8 @@ class SurrogateSearch:
                 supplemental_res = all_results[final_mask]
                 
                 # Append center result, supplementals, and centers to data for surrogate fitting
-                function_inputs = np.vstack([lhs_samples, supplemental_pos, center])
-                function_outputs = np.vstack([lhs_results, supplemental_res, center_result])
+                function_inputs = np.unique(np.vstack([lhs_samples, supplemental_pos, center]),axis = 0)
+                function_outputs = np.unique(np.vstack([lhs_results, supplemental_res, center_result]),axis = 0)
             else:
                 # Append center result and centers to data for surrogate fitting
                 function_inputs = np.vstack([lhs_samples, center])

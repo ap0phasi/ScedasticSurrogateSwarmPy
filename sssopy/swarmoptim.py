@@ -18,7 +18,7 @@ def fitness_eval(modeled_values,desired_values,error_measure):
 
 class SurrogateSwarm:
     
-    def __init__(self,optproblem,desired_vals,param_len,lowlim,highlim,config=None,surrogatesaves=None,centersaves=None,all_pos = None,all_results = None):
+    def __init__(self,optproblem,desired_vals,param_len,lowlim,highlim,config=None,surrogatesaves=None,centersaves=None,all_pos = None,all_results = None, num_search_results_used = 0):
         self.optproblem = optproblem
         self.desired_vals = desired_vals
         self.param_len = param_len
@@ -29,6 +29,8 @@ class SurrogateSwarm:
         self.centersaves = centersaves if centersaves is not None else np.empty((0,self.param_len), int)
         self.all_pos = all_pos if all_pos is not None else []
         self.all_results = all_results if all_results is not None else []
+        self.num_search_results_used = num_search_results_used
+        
         self.swarm_state = self.initialize_swarm()
 
     
@@ -48,7 +50,8 @@ class SurrogateSwarm:
             "lo_w" : 0.6,
             "vel_w" : 0.5,
             "surro_w" : 0.6,
-            "sced_w" : 1 
+            "sced_w" : 1,
+            "supplement_historical": False
         }
     
     def initialize_swarm(self):
@@ -57,8 +60,24 @@ class SurrogateSwarm:
         Returns:
             dict: search state of optimizer
         """
-        pos_x = np.random.uniform(self.lowlim, self.highlim, size=(self.config["swarm_size"], self.param_len))
+        
+        if self.num_search_results_used>self.config["swarm_size"]:
+            raise ValueError("Search results used must be less than swarm size")
+        
+        if self.num_search_results_used > 0 and self.all_pos == []:
+            raise ValueError("Search positions must be provided to be used in initialization")
+
+        pos_x = np.random.uniform(self.lowlim, 
+                                  self.highlim, 
+                                  size=(self.config["swarm_size"] - self.num_search_results_used, 
+                                        self.param_len))
         pos_results = evaluate_model_fun(pos_x, self.optproblem)
+
+        # Supplement the initial search with the last n search results used
+        if self.all_pos != []:
+            pos_x = np.vstack([pos_x,self.all_pos[-self.num_search_results_used:, :]])
+            pos_results = np.vstack([pos_results,self.all_results[-self.num_search_results_used:, :]])
+            
         pos_mean = np.mean(pos_results,axis = 0)
         pos_std = np.std(pos_results,axis = 0)
         pos_het = heteroscedastic_loss(self.desired_vals,pos_mean,pos_std)
@@ -180,9 +199,30 @@ class SurrogateSwarm:
             swarm_samples = pos_x[clustering_vector==cluster_index,]
             swarm_results = pos_results[clustering_vector==cluster_index,]
         
-            # Append center result and centers to data for surrogate fitting
-            function_inputs = np.vstack([swarm_samples,center])
-            function_outputs = np.vstack([swarm_results,center_result])
+            # Optionally, supplement with historical values that are within the LHS range
+            if self.config["supplement_historical"]:
+                # Calculate upper and lower limits of cluster
+                lower_limit = np.min(swarm_samples,axis = 0)
+                upper_limit = np.max(swarm_samples,axis = 0)
+                # Create boolean masks
+                mask_lower = np.all(all_pos >= lower_limit, axis=1)
+                mask_upper = np.all(all_pos <= upper_limit, axis=1)
+
+                # Combine masks
+                final_mask = mask_lower & mask_upper
+                
+                # Filter the arrays
+                supplemental_pos = all_pos[final_mask]
+                supplemental_res = all_results[final_mask]
+                
+                # Append center result, supplementals, and centers to data for surrogate fitting
+                function_inputs = np.unique(np.vstack([swarm_samples, supplemental_pos, center]),axis=0)
+                function_outputs =np.unique(np.vstack([swarm_results, supplemental_res, center_result]),axis=0)
+            else:
+                # Append center result and centers to data for surrogate fitting
+                function_inputs = np.vstack([swarm_samples, center])
+                function_outputs = np.vstack([swarm_results, center_result])
+                
             # Fit surrogates to sample results
             selector = SurrogateModelSelector(fit_threshold=self.config["fit_threshold"])
             selector.fit_models(function_inputs, function_outputs, center)
